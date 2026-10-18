@@ -1,0 +1,5 @@
+﻿fichier,fournisseur,numero,date,montant_ht,tva,montant_ttc,route,extraction_ok
+AO-8817,Alpaca Office SARL,AO-8817,05/10/2026,158.25,31.65,189.9,paiement auto,TRUE
+BS-F-2026-1109,Bâtisud Matériaux SA,BS-F-2026-1109,28/09/2026,2908.33,0,3490,validation humaine,TRUE
+CS-EU-26-0937,CloudSys Europe SAS,CS-EU-26-0937,01/10/2026,66.66,13.33,79.99,paiement auto,TRUE
+NT-2026-04412,NordTech Solutions SAS,NT-2026-04412,12/10/2026,1038,207.6,1245.6,validation humaine,TRUE

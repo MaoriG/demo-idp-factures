@@ -1,0 +1,168 @@
+{
+  "name": "Demo IDP — Factures fournisseurs",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🧾 Démo IDP — Intelligent Document Processing\n\n**Problème métier** : des factures PDF de fournisseurs, 4 mises en page différentes.\n\n**Pipeline** : lecture disque → extraction texte PDF → extraction structurée des champs (regex déterministe) → export CSV → **routage automatique** :\n- ≤ 1 000 € → paiement automatique\n- > 1 000 € → validation humaine (human-in-the-loop)\n\n**Slot LLM** : pour des PDF scannés / non structurés, on branche ici un nœud LLM (Mistral — souveraineté 🇫🇷) entre l'extraction texte et le parsing. La regex reste le fallback déterministe.",
+        "height": 460,
+        "width": 380
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000001",
+      "name": "Note démo",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-620, -340]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0000-4000-8000-000000000002",
+      "name": "Déclencheur manuel",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-620, 80]
+    },
+    {
+      "parameters": {
+        "fileSelector": "C:/Users/gober/.n8n-files/idp-demo/*.pdf",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000003",
+      "name": "Lire les factures PDF",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [-420, 80]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000004",
+      "name": "Extraire le texte",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [-220, 80]
+    },
+    {
+      "parameters": {
+        "jsCode": "// IDP — extraction structurée des champs de facture (fallback déterministe)\nconst out = [];\nfor (const item of $input.all()) {\n  const text = item.json.text || item.json.data || '';\n  const grab = (re) => { const m = text.match(re); return m ? m[1].trim() : ''; };\n\n  const fournisseur = grab(/Émetteur\\s*:?[\\s\\n]*([A-Z][^\\n]+)/);\n  const numero      = grab(/Facture\\s*n°\\s*:?\\s*([A-Z0-9-]+)/i);\n  const date        = grab(/Date\\s*:?\\s*(\\d{2}\\/\\d{2}\\/\\d{4})/);\n  const ttcStr      = grab(/Total\\s*TTC\\s*:?\\s*([\\d\\s\\u00A0]+,\\d{2})/i);\n  const htStr       = grab(/Total\\s*HT\\s*:?\\s*([\\d\\s\\u00A0]+,\\d{2})/i) || grab(/([\\d\\s\\u00A0]+,\\d{2})\\s*€?\\s*HT/i);\n  const tvaStr      = grab(/TVA\\s*\\(20\\s*%\\)\\s*:?\\s*([\\d\\s\\u00A0]+,\\d{2})/i);\n\n  const toNum = (s) => parseFloat((s || '').replace(/[\\s\\u00A0]/g, '').replace(',', '.')) || 0;\n  const montant_ttc = toNum(ttcStr);\n\n  out.push({\n    json: {\n      fichier: (item.binary && item.binary.data && item.binary.data.fileName) || numero || 'inconnu',\n      fournisseur,\n      numero,\n      date,\n      montant_ht: toNum(htStr),\n      tva: toNum(tvaStr),\n      montant_ttc,\n      route: montant_ttc > 1000 ? 'validation humaine' : 'paiement auto',\n      extraction_ok: montant_ttc > 0\n    }\n  });\n}\nreturn out;"
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000005",
+      "name": "Extraire les champs (IDP)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-20, 80]
+    },
+    {
+      "parameters": {
+        "content": "### 🤖 Slot LLM (optionnel)\nPour des PDF scannés : brancher ici un nœud LLM (ex. Mistral) pour la structuration.\nCette démo reste 100 % fonctionnelle sans clé API — la regex est le chemin déterministe.",
+        "height": 220,
+        "width": 300
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000006",
+      "name": "Note LLM",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-60, 240]
+    },
+    {
+      "parameters": {
+        "operation": "csv",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000007",
+      "name": "Convertir en CSV",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [180, 260]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/gober/.n8n-files/idp-demo/out/resultats.csv",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000008",
+      "name": "Écrire resultats.csv",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [380, 260]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-montant-ttc",
+              "leftValue": "={{ $json.montant_ttc }}",
+              "rightValue": 1000,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000009",
+      "name": "Montant > 1 000 € ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [180, -80]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0000-4000-8000-00000000000a",
+      "name": "👤 Validation humaine",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [420, -180]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0000-4000-8000-00000000000b",
+      "name": "✅ Paiement automatique",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [420, 20]
+    }
+  ],
+  "connections": {
+    "Déclencheur manuel": {
+      "main": [[{ "node": "Lire les factures PDF", "type": "main", "index": 0 }]]
+    },
+    "Lire les factures PDF": {
+      "main": [[{ "node": "Extraire le texte", "type": "main", "index": 0 }]]
+    },
+    "Extraire le texte": {
+      "main": [[{ "node": "Extraire les champs (IDP)", "type": "main", "index": 0 }]]
+    },
+    "Extraire les champs (IDP)": {
+      "main": [
+        [
+          { "node": "Montant > 1 000 € ?", "type": "main", "index": 0 },
+          { "node": "Convertir en CSV", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Montant > 1 000 € ?": {
+      "main": [
+        [{ "node": "👤 Validation humaine", "type": "main", "index": 0 }],
+        [{ "node": "✅ Paiement automatique", "type": "main", "index": 0 }]
+      ]
+    },
+    "Convertir en CSV": {
+      "main": [[{ "node": "Écrire resultats.csv", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
